@@ -1,0 +1,31 @@
+name: Run Ansible Playbook
+
+on:
+  workflow_dispatch:
+    inputs:
+      playbook_path:
+        description: 'Path to the Ansible playbook'
+        required: true
+        default: 'playbook.yml'
+      inventory_path:
+        description: 'Path to the inventory file'
+        required: false
+        default: 'inventory.yml'
+      extra_vars:
+        description: 'Extra variables for Ansible'
+        required: false
+        default: '{}'
+
+jobs:
+  run-playbook:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Ansible Playbook
+        uses: ./
+        with:
+          playbook_path: ${{ github.event.inputs.playbook_path }}
+          inventory_path: ${{ github.event.inputs.inventory_path }}
+          extra_vars: ${{ github.event.inputs.extra_vars }} 

@@ -1,0 +1,20 @@
+name: 'Ansible Playbook Runner'
+description: 'Runs an Ansible playbook'
+inputs:
+  playbook_path:
+    description: 'Path to the Ansible playbook'
+    required: true
+  inventory_path:
+    description: 'Path to the Ansible inventory file'
+    required: false
+    default: 'inventory.yml'
+  extra_vars:
+    description: 'Extra variables to pass to Ansible'
+    required: false
+    default: '{}'
+outputs:
+  result:
+    description: 'Result of the playbook execution'
+runs:
+  using: 'docker'
+  image: 'Dockerfile' 
