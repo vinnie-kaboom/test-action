@@ -7,10 +7,6 @@ on:
         description: 'Path to the Ansible playbook'
         required: true
         default: 'playbook.yml'
-      inventory_path:
-        description: 'Path to the inventory file'
-        required: false
-        default: 'inventory.yml'
       extra_vars:
         description: 'Extra variables for Ansible'
         required: false
@@ -27,5 +23,5 @@ jobs:
         uses: ./
         with:
           playbook_path: ${{ github.event.inputs.playbook_path }}
-          inventory_path: ${{ github.event.inputs.inventory_path }}
+          inventory_path: '/home/vincent/Projects/diveintoansible/Ansible Playbooks, Introduction/Ansible Playbooks, Breakdown of Sections/05'
           extra_vars: ${{ github.event.inputs.extra_vars }} 
