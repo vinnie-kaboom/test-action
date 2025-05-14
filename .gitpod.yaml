@@ -1,0 +1,16 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - name: Start Dev Server
+    init: npm install
+    command: npm run dev
+
+vscode:
+  extensions:
+    - ms-azuretools.vscode-docker
+    - golang.go
+
+ports:
+  - port: 3000
+    onOpen: open-preview
