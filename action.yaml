@@ -8,7 +8,7 @@ inputs:
     description: 'The GCP project ID'
     required: true
   credentials_json:
-    description: 'The GCP credentials JSON file content'
+    description: 'The GCP credentials JSON'
     required: true
 runs:
   using: 'docker'
@@ -16,8 +16,4 @@ runs:
   env:
     INPUT_BUCKET_NAME: ${{ inputs.bucket_name }}
     INPUT_PROJECT_ID: ${{ inputs.project_id }}
-    GOOGLE_APPLICATION_CREDENTIALS: /tmp/credentials.json
-  pre-entrypoint: |
-    echo "${{ inputs.credentials_json }}" > /tmp/credentials.json
-
-	
+    INPUT_CREDENTIALS_JSON: ${{ inputs.credentials_json }}
