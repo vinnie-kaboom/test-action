@@ -7,11 +7,17 @@ inputs:
   project_id:
     description: 'The GCP project ID'
     required: true
+  credentials_json:
+    description: 'The GCP credentials JSON file content'
+    required: true
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  image: 'gcr.io/sylvan-apogee-450014-a6/gpc-bucket-create:latest'
   env:
     INPUT_BUCKET_NAME: ${{ inputs.bucket_name }}
     INPUT_PROJECT_ID: ${{ inputs.project_id }}
-    GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+    GOOGLE_APPLICATION_CREDENTIALS: /tmp/credentials.json
+  pre-entrypoint: |
+    echo "${{ inputs.credentials_json }}" > /tmp/credentials.json
+
 	

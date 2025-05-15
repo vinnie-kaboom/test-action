@@ -31,7 +31,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create storage client: %v", err)
 	}
-	defer client.Close()
+	defer func(client *storage.Client) {
+		err := client.Close()
+		if err != nil {
+			fmt.Printf("Failed to close client: %v", err)
+		}
+	}(client)
 
 	bucket := client.Bucket(bucketName)
 	_, err = bucket.Attrs(ctx)
