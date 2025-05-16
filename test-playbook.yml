@@ -1,0 +1,29 @@
+---
+- name: Test Ansible GitOps Service
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Display system information
+      debug:
+        msg: "Running on {{ ansible_hostname }} with OS {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Create test directory
+      file:
+        path: /tmp/ansible-gitops-test
+        state: directory
+        mode: '0755'
+
+    - name: Create test file with timestamp
+      copy:
+        content: "This file was created by Ansible GitOps Service at {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/ansible-gitops-test/test.txt
+        mode: '0644'
+
+    - name: Display test file contents
+      command: cat /tmp/ansible-gitops-test/test.txt
+      register: file_contents
+      changed_when: false
+
+    - name: Show file contents
+      debug:
+        var: file_contents.stdout_lines 
