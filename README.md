@@ -1,65 +1,95 @@
-# Ansible GitHub Action
+# Ansible GitOps Service
 
-This GitHub Action allows you to run Ansible playbooks in your GitHub workflows.
+This service continuously monitors Git repositories and runs Ansible playbooks when changes are detected.
 
-## Setup Instructions
+## Installation
 
-### 1. Setting up a Self-hosted Runner
-
-1. Go to your GitHub repository
-2. Click on "Settings" > "Actions" > "Runners"
-3. Click "New self-hosted runner"
-4. Choose your operating system and architecture
-5. Follow the instructions provided to set up the runner on your machine:
-
+1. Clone this repository:
 ```bash
-# Download the runner package
-curl -o actions-runner-linux-x64-2.311.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
-
-# Extract the installer
-tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
-
-# Configure the runner
-./config.sh --url https://github.com/YOUR-USERNAME/YOUR-REPO --token YOUR-TOKEN
-
-# Install the runner service
-./svc.sh install
-
-# Start the runner service
-./svc.sh start
+git clone https://github.com/yourusername/test-action.git
+cd test-action
 ```
 
-### 2. Using the Action
-
-Add the following to your workflow file:
-
-```yaml
-- name: Run Ansible Playbook
-  uses: ./
-  with:
-    playbook_path: path/to/playbook.yml
-    inventory_path: path/to/inventory.yml  # optional
-    extra_vars: '{"key": "value"}'        # optional
+2. Make the installation script executable:
+```bash
+chmod +x install.sh
 ```
 
-## Inputs
-
-- `playbook_path`: Path to the Ansible playbook (required)
-- `inventory_path`: Path to the Ansible inventory file (optional)
-- `extra_vars`: Extra variables to pass to Ansible (optional)
-
-## Outputs
-
-- `result`: Result of the playbook execution
-
-## Development
-
-To build and test the action locally:
-
+3. Run the installation script:
 ```bash
-# Build the Docker image
-docker build -t ansible-action .
+./install.sh
+```
 
-# Run the action
-docker run -e INPUT_PLAYBOOK_PATH=playbook.yml ansible-action
+## Service Management
+
+- Check service status:
+```bash
+sudo systemctl status ansible-gitops
+```
+
+- View logs:
+```bash
+sudo journalctl -u ansible-gitops -f
+```
+
+- Stop the service:
+```bash
+sudo systemctl stop ansible-gitops
+```
+
+- Start the service:
+```bash
+sudo systemctl start ansible-gitops
+```
+
+- Restart the service:
+```bash
+sudo systemctl restart ansible-gitops
+```
+
+## Configuration
+
+The service is configured through the systemd service file (`ansible-gitops.service`). You can modify the following environment variables:
+
+- `INPUT_PLAYBOOK_PATH`: Path to your Ansible playbook
+- `INPUT_INVENTORY_PATH`: Path to your Ansible inventory
+- `INPUT_WATCH_INTERVAL`: Interval in seconds to check for changes
+- `INPUT_WATCH_REPOS`: Comma-separated list of repositories to watch
+
+After modifying the service file, reload the configuration:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ansible-gitops
+```
+
+## How it Works
+
+1. The service runs as a systemd service, ensuring it:
+   - Starts automatically on boot
+   - Restarts if it crashes
+   - Runs continuously in the background
+
+2. It monitors the specified Git repositories for changes
+
+3. When changes are detected:
+   - Pulls the latest changes
+   - Runs the specified Ansible playbook
+   - Logs all activities
+
+## Logs
+
+View the service logs:
+```bash
+sudo journalctl -u ansible-gitops -f
+```
+
+## Uninstallation
+
+To remove the service:
+```bash
+sudo systemctl stop ansible-gitops
+sudo systemctl disable ansible-gitops
+sudo rm /etc/systemd/system/ansible-gitops.service
+sudo rm /usr/local/bin/ansible-gitops
+sudo systemctl daemon-reload
 ```

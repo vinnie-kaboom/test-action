@@ -1,0 +1,21 @@
+[Unit]
+Description=Ansible GitOps Service
+After=network.target
+
+[Service]
+Type=simple
+User=vincent
+WorkingDirectory=/home/vincent/Projects/test-action
+ExecStart=/usr/local/bin/ansible-gitops \
+    --playbook=playbook.yml \
+    --inventory="/home/vincent/Projects/diveintoansible/Ansible Playbooks, Introduction/Ansible Playbooks, Breakdown of Sections/05" \
+    --interval=300 \
+    --repos=/home/vincent/Projects/test-action \
+    --branch=main \
+    --github-token=YOUR_GITHUB_TOKEN \
+    --github-user=YOUR_GITHUB_USERNAME
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 
