@@ -1,5 +1,5 @@
-name: 'Ansible Playbook Runner'
-description: 'Runs an Ansible playbook'
+name: 'Ansible GitOps Runner'
+description: 'Runs Ansible playbooks in a GitOps style, continuously watching for changes'
 inputs:
   playbook_path:
     description: 'Path to the Ansible playbook'
@@ -12,6 +12,14 @@ inputs:
     description: 'Extra variables to pass to Ansible'
     required: false
     default: '{}'
+  watch_interval:
+    description: 'Interval in seconds to check for changes'
+    required: false
+    default: '300'
+  watch_repos:
+    description: 'Comma-separated list of repository paths to watch for changes'
+    required: false
+    default: '.'
 outputs:
   result:
     description: 'Result of the playbook execution'

@@ -1,4 +1,4 @@
-name: Run Ansible Playbook
+name: Run Ansible GitOps
 
 on:
   workflow_dispatch:
@@ -11,6 +11,10 @@ on:
         description: 'Extra variables for Ansible'
         required: false
         default: '{}'
+      watch_interval:
+        description: 'Interval in seconds to check for changes'
+        required: false
+        default: '300'
 
 jobs:
   run-playbook:
@@ -18,10 +22,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for git operations
 
-      - name: Run Ansible Playbook
+      - name: Run Ansible GitOps
         uses: ./
         with:
           playbook_path: ${{ github.event.inputs.playbook_path }}
           inventory_path: '/home/vincent/Projects/diveintoansible/Ansible Playbooks, Introduction/Ansible Playbooks, Breakdown of Sections/05'
-          extra_vars: ${{ github.event.inputs.extra_vars }} 
+          extra_vars: ${{ github.event.inputs.extra_vars }}
+          watch_interval: ${{ github.event.inputs.watch_interval }} 
