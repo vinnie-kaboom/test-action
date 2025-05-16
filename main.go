@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -17,6 +18,31 @@ type Config struct {
 	Branch        string
 	GitHubToken   string
 	GitHubUser    string
+}
+
+func (c *Config) Validate() error {
+	if c.PlaybookPath == "" {
+		return fmt.Errorf("playbook path is required")
+	}
+	if !fileExists(c.PlaybookPath) {
+		return fmt.Errorf("playbook file does not exist: %s", c.PlaybookPath)
+	}
+	if c.InventoryPath != "" && !fileExists(c.InventoryPath) {
+		return fmt.Errorf("inventory file does not exist: %s", c.InventoryPath)
+	}
+	if c.WatchInterval < 10 {
+		return fmt.Errorf("watch interval must be at least 10 seconds")
+	}
+	if len(c.WatchRepos) == 0 {
+		return fmt.Errorf("at least one repository must be specified")
+	}
+	if c.GitHubToken == "" {
+		return fmt.Errorf("GitHub token is required")
+	}
+	if len(c.GitHubToken) < 40 {
+		return fmt.Errorf("invalid GitHub token format")
+	}
+	return nil
 }
 
 func main() {
@@ -58,14 +84,8 @@ func main() {
 	fmt.Printf("  GitHub User: %s\n", config.GitHubUser)
 
 	// Validate configuration
-	if config.PlaybookPath == "" {
-		fmt.Println("Error: playbook path is required")
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if config.GitHubToken == "" {
-		fmt.Println("Error: GitHub token is required")
+	if err := config.Validate(); err != nil {
+		fmt.Printf("Error: %v\n", err)
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -247,4 +267,34 @@ func getCurrentDir() string {
 		return "Error getting current directory"
 	}
 	return dir
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func runCommandWithTimeout(cmd *exec.Cmd, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd.WaitDelay = timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start command: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		if err := cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("failed to kill process: %v", err)
+		}
+		return fmt.Errorf("command timed out")
+	}
 }

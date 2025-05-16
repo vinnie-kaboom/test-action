@@ -1,86 +1,91 @@
 # Ansible GitOps Service
 
-This service continuously monitors Git repositories and runs Ansible playbooks when changes are detected.
+A service that watches Git repositories for changes and runs Ansible playbooks when changes are detected.
+
+## Features
+
+- Monitors specified Git repositories for changes
+- Runs Ansible playbooks when changes are detected
+- Supports GitHub authentication
+- Runs as a systemd service
+- Configurable watch interval
+- Supports multiple repositories
+
+## Prerequisites
+
+- Go 1.16 or later
+- Ansible installed
+- Git installed
+- GitHub Personal Access Token with `repo` scope
 
 ## Installation
 
-1. Clone this repository:
+1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/test-action.git
-cd test-action
+git clone https://github.com/vinnie-kaboom/ansible-gitops-test.git
+cd ansible-gitops-test
 ```
 
-2. Make the installation script executable:
+2. Build the service:
+```bash
+go build -o ansible-gitops
+```
+
+3. Install the service:
 ```bash
 chmod +x install.sh
-```
-
-3. Run the installation script:
-```bash
 ./install.sh
 ```
 
-## Service Management
+4. Configure the service:
+Edit `/etc/systemd/system/ansible-gitops.service` and update:
+- GitHub token
+- Repository paths
+- Playbook path
+- Watch interval
 
-- Check service status:
+5. Start the service:
 ```bash
-sudo systemctl status ansible-gitops
-```
-
-- View logs:
-```bash
-sudo journalctl -u ansible-gitops -f
-```
-
-- Stop the service:
-```bash
-sudo systemctl stop ansible-gitops
-```
-
-- Start the service:
-```bash
+sudo systemctl daemon-reload
 sudo systemctl start ansible-gitops
-```
-
-- Restart the service:
-```bash
-sudo systemctl restart ansible-gitops
 ```
 
 ## Configuration
 
-The service is configured through the systemd service file (`ansible-gitops.service`). You can modify the following environment variables:
+The service can be configured through command-line arguments:
 
-- `INPUT_PLAYBOOK_PATH`: Path to your Ansible playbook
-- `INPUT_INVENTORY_PATH`: Path to your Ansible inventory
-- `INPUT_WATCH_INTERVAL`: Interval in seconds to check for changes
-- `INPUT_WATCH_REPOS`: Comma-separated list of repositories to watch
+- `--playbook`: Path to the Ansible playbook
+- `--inventory`: (Optional) Path to the Ansible inventory
+- `--interval`: Watch interval in seconds (default: 300)
+- `--repos`: Comma-separated list of repositories to watch
+- `--branch`: Branch to watch (default: main)
+- `--github-token`: GitHub Personal Access Token
+- `--github-user`: GitHub username
 
-After modifying the service file, reload the configuration:
+## Usage
+
+1. Create your Ansible playbook in the watched repository
+2. The service will automatically detect changes
+3. When changes are detected, it will:
+   - Pull the latest changes
+   - Run the playbook
+   - Log the results
+
+## Service Management
+
+Check service status:
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart ansible-gitops
+sudo systemctl status ansible-gitops
 ```
 
-## How it Works
-
-1. The service runs as a systemd service, ensuring it:
-   - Starts automatically on boot
-   - Restarts if it crashes
-   - Runs continuously in the background
-
-2. It monitors the specified Git repositories for changes
-
-3. When changes are detected:
-   - Pulls the latest changes
-   - Runs the specified Ansible playbook
-   - Logs all activities
-
-## Logs
-
-View the service logs:
+View logs:
 ```bash
-sudo journalctl -u ansible-gitops -f
+journalctl -u ansible-gitops -f
+```
+
+Restart service:
+```bash
+sudo systemctl restart ansible-gitops
 ```
 
 ## Uninstallation
@@ -93,3 +98,14 @@ sudo rm /etc/systemd/system/ansible-gitops.service
 sudo rm /usr/local/bin/ansible-gitops
 sudo systemctl daemon-reload
 ```
+
+## Security Notes
+
+- Never commit GitHub tokens to the repository
+- Use environment variables or a secrets manager in production
+- Set appropriate token permissions (least privilege)
+- Consider using a dedicated service account
+
+## License
+
+MIT License
