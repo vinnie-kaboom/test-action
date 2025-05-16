@@ -4,9 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -45,9 +49,36 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+func (c *Config) LoadFromEnv() {
+	if playbook := os.Getenv("ANSIBLE_PLAYBOOK"); playbook != "" {
+		c.PlaybookPath = playbook
+	}
+	if inventory := os.Getenv("ANSIBLE_INVENTORY"); inventory != "" {
+		c.InventoryPath = inventory
+	}
+	if interval := os.Getenv("WATCH_INTERVAL"); interval != "" {
+		if val, err := strconv.Atoi(interval); err == nil {
+			c.WatchInterval = val
+		}
+	}
+	if repos := os.Getenv("WATCH_REPOS"); repos != "" {
+		c.WatchRepos = strings.Split(repos, ",")
+	}
+	if branch := os.Getenv("WATCH_BRANCH"); branch != "" {
+		c.Branch = branch
+	}
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		c.GitHubToken = token
+	}
+	if user := os.Getenv("GITHUB_USER"); user != "" {
+		c.GitHubUser = user
+	}
+}
+
 func main() {
-	fmt.Println("Starting Ansible GitOps Service...")
-	fmt.Printf("Current working directory: %s\n", getCurrentDir())
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("Starting Ansible GitOps Service...")
+	log.Printf("Current working directory: %s\n", getCurrentDir())
 
 	// Define command line flags
 	playbookPath := flag.String("playbook", "", "Path to the Ansible playbook")
@@ -75,35 +106,49 @@ func main() {
 		config.WatchRepos = strings.Split(*watchRepos, ",")
 	}
 
-	fmt.Printf("Configuration:\n")
-	fmt.Printf("  Playbook Path: %s\n", config.PlaybookPath)
-	fmt.Printf("  Inventory Path: %s\n", config.InventoryPath)
-	fmt.Printf("  Watch Interval: %d seconds\n", config.WatchInterval)
-	fmt.Printf("  Watch Repositories: %v\n", config.WatchRepos)
-	fmt.Printf("  Watch Branch: %s\n", config.Branch)
-	fmt.Printf("  GitHub User: %s\n", config.GitHubUser)
+	// Load configuration from environment variables
+	config.LoadFromEnv()
+
+	log.Printf("Configuration:\n")
+	log.Printf("  Playbook Path: %s\n", config.PlaybookPath)
+	log.Printf("  Inventory Path: %s\n", config.InventoryPath)
+	log.Printf("  Watch Interval: %d seconds\n", config.WatchInterval)
+	log.Printf("  Watch Repositories: %v\n", config.WatchRepos)
+	log.Printf("  Watch Branch: %s\n", config.Branch)
+	log.Printf("  GitHub User: %s\n", config.GitHubUser)
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		flag.Usage()
-		os.Exit(1)
+		log.Fatalf("Configuration error: %v", err)
 	}
 
 	// Check if Ansible is available
 	if err := checkAnsibleAvailability(); err != nil {
-		fmt.Printf("Error: Ansible is not available: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Ansible not available: %v", err)
 	}
 
 	// Configure Git with GitHub credentials
 	if err := configureGit(config); err != nil {
-		fmt.Printf("Error configuring Git: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Git configuration error: %v", err)
 	}
 
-	// Start watching for changes
-	watchForChanges(config)
+	// Create context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle OS signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start watching for changes in a goroutine
+	go watchForChanges(ctx, config)
+
+	// Wait for shutdown signal
+	<-sigChan
+	log.Println("Received shutdown signal, cleaning up...")
+	cancel()
+	time.Sleep(time.Second) // Give time for cleanup
+	log.Println("Service stopped")
 }
 
 func checkAnsibleAvailability() error {
@@ -114,9 +159,8 @@ func checkAnsibleAvailability() error {
 		return fmt.Errorf("ansible-playbook not found: %v", err)
 	}
 
-	// Parse version output
 	version := strings.TrimSpace(string(output))
-	fmt.Printf("Ansible version: %s\n", version)
+	log.Printf("Ansible version: %s", version)
 
 	// Check if ansible-galaxy is available
 	cmd = exec.Command("ansible-galaxy", "--version")
@@ -125,7 +169,7 @@ func checkAnsibleAvailability() error {
 		return fmt.Errorf("ansible-galaxy not found: %v", err)
 	}
 
-	fmt.Printf("Ansible Galaxy version: %s\n", strings.TrimSpace(string(output)))
+	log.Printf("Ansible Galaxy version: %s", strings.TrimSpace(string(output)))
 	return nil
 }
 
@@ -150,65 +194,79 @@ func configureGit(config Config) error {
 	return nil
 }
 
-func watchForChanges(config Config) {
-	// Initialize repository states
+func watchForChanges(ctx context.Context, config Config) {
 	repoStates := make(map[string]string)
 
-	// Get initial states for all repositories
+	// Get initial states
 	for _, repo := range config.WatchRepos {
 		hash, err := getGitHash(repo, config.Branch)
 		if err != nil {
-			fmt.Printf("Error getting initial hash for %s: %v\n", repo, err)
+			log.Printf("Error getting initial hash for %s: %v", repo, err)
 			continue
 		}
 		repoStates[repo] = hash
-		fmt.Printf("Initial git hash for %s (branch: %s): %s\n", repo, config.Branch, hash)
+		log.Printf("Initial git hash for %s (branch: %s): %s", repo, config.Branch, hash)
 	}
 
+	ticker := time.NewTicker(time.Duration(config.WatchInterval) * time.Second)
+	defer ticker.Stop()
+
 	for {
-		// Periodically check Ansible availability
-		if err := checkAnsibleAvailability(); err != nil {
-			fmt.Printf("Warning: Ansible check failed: %v\n", err)
-			time.Sleep(time.Duration(config.WatchInterval) * time.Second)
-			continue
-		}
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping watch loop")
+			return
+		case <-ticker.C:
+			log.Printf("=== Checking repositories for changes (interval: %d seconds) ===", config.WatchInterval)
 
-		changesDetected := false
-
-		// Check each repository for changes
-		for repo, lastHash := range repoStates {
-			currentHash, err := getGitHash(repo, config.Branch)
-			if err != nil {
-				fmt.Printf("Error checking %s: %v\n", repo, err)
+			if err := checkAnsibleAvailability(); err != nil {
+				log.Printf("Warning: Ansible check failed: %v", err)
 				continue
 			}
 
-			if currentHash != lastHash {
-				fmt.Printf("Detected changes in repository %s (branch: %s). Old hash: %s, New hash: %s\n",
-					repo, config.Branch, lastHash, currentHash)
+			changesDetected := false
 
-				// Pull latest changes
-				if err := pullLatestChanges(repo, config.Branch); err != nil {
-					fmt.Printf("Error pulling changes for %s: %v\n", repo, err)
-					continue
+			for repo, lastHash := range repoStates {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					log.Printf("Checking repository: %s (branch: %s)", repo, config.Branch)
+					currentHash, err := getGitHash(repo, config.Branch)
+					if err != nil {
+						log.Printf("Error checking %s: %v", repo, err)
+						continue
+					}
+
+					if currentHash != lastHash {
+						log.Printf("🔔 Detected changes in repository %s (branch: %s)", repo, config.Branch)
+						log.Printf("   Old hash: %s", lastHash)
+						log.Printf("   New hash: %s", currentHash)
+
+						if err := pullLatestChanges(repo, config.Branch); err != nil {
+							log.Printf("Error pulling changes for %s: %v", repo, err)
+							continue
+						}
+
+						changesDetected = true
+						repoStates[repo] = currentHash
+					} else {
+						log.Printf("✓ No changes detected in %s", repo)
+					}
 				}
-
-				changesDetected = true
-				repoStates[repo] = currentHash
 			}
-		}
 
-		// If any repository had changes, run the playbook
-		if changesDetected {
-			if err := runPlaybook(config); err != nil {
-				fmt.Printf("Error running playbook: %v\n", err)
+			if changesDetected {
+				log.Println("=== Changes detected, running playbook ===")
+				if err := runPlaybook(config); err != nil {
+					log.Printf("Error running playbook: %v", err)
+				} else {
+					log.Println("✅ Playbook executed successfully")
+				}
 			} else {
-				fmt.Println("Playbook executed successfully")
+				log.Println("=== No changes detected in any repository ===")
 			}
 		}
-
-		// Wait for the specified interval
-		time.Sleep(time.Duration(config.WatchInterval) * time.Second)
 	}
 }
 
@@ -243,22 +301,18 @@ func pullLatestChanges(repoPath, branch string) error {
 }
 
 func runPlaybook(config Config) error {
-	// Construct ansible-playbook command
 	cmd := exec.Command("ansible-playbook", config.PlaybookPath)
 
-	// Add inventory if provided
 	if config.InventoryPath != "" {
 		cmd.Args = append(cmd.Args, "-i", config.InventoryPath)
 	}
 
-	fmt.Printf("Executing command: %v\n", cmd.Args)
+	log.Printf("Executing command: %v", cmd.Args)
 
-	// Set up output
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Run the command
-	return cmd.Run()
+	return runCommandWithTimeout(cmd, 30*time.Minute)
 }
 
 func getCurrentDir() string {
