@@ -5,14 +5,15 @@ After=network.target
 [Service]
 Type=simple
 User=vincent
-WorkingDirectory=/home/vincent/Projects/ansible-gitops-test
+Group=vincent
+WorkingDirectory=/home/vincent/Projects/test-action
 ExecStart=/usr/local/bin/ansible-gitops \
     --playbook=test-playbook.yml \
     --interval=300 \
-    --repos="https://github.com/vinnie-kaboom/ansible-gitops-test" \
+    --repos=/home/vincent/Projects/test-action \
     --branch=main \
-    --github-token="YOUR_GITHUB_USERNAME" \
-    --github-user="vinnie-kaboom"
+    --github-token="YOUR_GITHUB_TOKEN" \
+    --github-user=vinnie-kaboom
 Restart=always
 RestartSec=10
 

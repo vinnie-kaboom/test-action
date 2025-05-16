@@ -232,6 +232,13 @@ func watchForChanges(ctx context.Context, config Config) {
 					return
 				default:
 					log.Printf("Checking repository: %s (branch: %s)", repo, config.Branch)
+
+					// Pull latest changes before checking hash
+					if err := pullLatestChanges(repo, config.Branch); err != nil {
+						log.Printf("Error pulling changes for %s: %v", repo, err)
+						continue
+					}
+
 					currentHash, err := getGitHash(repo, config.Branch)
 					if err != nil {
 						log.Printf("Error checking %s: %v", repo, err)
@@ -242,11 +249,6 @@ func watchForChanges(ctx context.Context, config Config) {
 						log.Printf("🔔 Detected changes in repository %s (branch: %s)", repo, config.Branch)
 						log.Printf("   Old hash: %s", lastHash)
 						log.Printf("   New hash: %s", currentHash)
-
-						if err := pullLatestChanges(repo, config.Branch); err != nil {
-							log.Printf("Error pulling changes for %s: %v", repo, err)
-							continue
-						}
 
 						changesDetected = true
 						repoStates[repo] = currentHash
